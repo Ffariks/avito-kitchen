@@ -1,0 +1,26 @@
+@startuml c4-container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Авито.Кухня — C4, Level 2 (Container)
+
+Person(user, "Пользователь", "Заказывает еду через веб-клиент")
+System_Ext(webClient, "Веб-клиент", "Отдельный фронтенд (вне рамок MVP), реализует CJM пользователя")
+
+System_Boundary(platform, "Авито.Кухня") {
+  Container(api, "API-сервис площадки", "Go, net/http", "Каталог заведений/меню, оформление и статусы заказов")
+  ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Заведения, меню, заказы, позиции заказов")
+}
+
+System_Boundary(restaurantSystem, "Заведение (пример интеграции)") {
+  Container(restaurantService, "restaurant-service", "Go, net/http", "Принимает заказы вебхуком, симулирует готовку, обновляет статус")
+}
+
+Rel(user, webClient, "Просматривает меню, оформляет заказ", "HTTPS")
+Rel(webClient, api, "Каталог, заказы, статусы", "JSON/HTTPS")
+Rel(api, db, "Читает/пишет", "SQL")
+Rel(api, restaurantService, "Уведомляет о новом заказе", "POST /orders (webhook)")
+Rel(restaurantService, api, "Обновляет статус заказа", "PATCH /api/v1/restaurant/{rid}/orders/{id}/status")
+
+@enduml

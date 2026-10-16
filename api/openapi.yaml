@@ -1,0 +1,349 @@
+openapi: 3.0.3
+info:
+  title: Авито.Кухня API
+  version: "1.0.0"
+  description: >
+    MVP API площадки доставки еды Авито.Кухня. Авторизация/аутентификация
+    в рамках MVP не реализуется — user_id передаётся клиентом явно.
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: client
+    description: API для веб-клиента (пользовательский сценарий)
+  - name: restaurant
+    description: API для интеграции заведений
+
+paths:
+  /api/v1/restaurants:
+    get:
+      tags: [client]
+      summary: Список активных заведений
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Restaurant" }
+
+  /api/v1/restaurants/{id}:
+    get:
+      tags: [client]
+      summary: Карточка заведения
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Restaurant" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/restaurants/{id}/menu:
+    get:
+      tags: [client]
+      summary: Меню заведения
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MenuItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/orders:
+    post:
+      tags: [client]
+      summary: Оформить заказ
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201":
+          description: Заказ создан
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Некорректный запрос (нет user_id/restaurant_id, quantity <= 0)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Заведение не найдено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: >
+            Бизнес-ошибка сценария: заведение неактивно, товара нет в наличии,
+            товар не существует или принадлежит другому заведению, заказ пуст.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/orders/{id}:
+    get:
+      tags: [client]
+      summary: Статус и состав заказа
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/users/{id}/orders:
+    get:
+      tags: [client]
+      summary: История заказов пользователя
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+
+  /api/v1/orders/{id}/cancel:
+    post:
+      tags: [client]
+      summary: Отменить свой заказ (пока заведение не начало готовить)
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: integer, format: int64 }
+              required: [user_id]
+      responses:
+        "200":
+          description: Заказ отменён
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: Заказ уже готовится или завершён — отменить нельзя
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/restaurant/{restaurant_id}/menu-items:
+    post:
+      tags: [restaurant]
+      summary: Добавить позицию в меню своего заведения
+      parameters:
+        - $ref: "#/components/parameters/RestaurantIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMenuItemRequest" }
+      responses:
+        "201":
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MenuItem" }
+        "400":
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/restaurant/{restaurant_id}/menu-items/{id}/availability:
+    patch:
+      tags: [restaurant]
+      summary: Отметить наличие/отсутствие товара своего заведения
+      parameters:
+        - $ref: "#/components/parameters/RestaurantIdParam"
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_available: { type: boolean }
+              required: [is_available]
+      responses:
+        "204": { description: Обновлено }
+        "400":
+          description: Не передано is_available
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/v1/restaurant/{restaurant_id}/orders:
+    get:
+      tags: [restaurant]
+      summary: Список заказов заведения
+      parameters:
+        - $ref: "#/components/parameters/RestaurantIdParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+
+  /api/v1/restaurant/{restaurant_id}/orders/{id}/status:
+    patch:
+      tags: [restaurant]
+      summary: Сменить статус своего заказа (вызывается сервисом заведения)
+      parameters:
+        - $ref: "#/components/parameters/RestaurantIdParam"
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  $ref: "#/components/schemas/OrderStatus"
+              required: [status]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: Заказ не найден или принадлежит другому заведению
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Недопустимый переход статуса
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    RestaurantIdParam:
+      name: restaurant_id
+      in: path
+      required: true
+      description: >
+        Заведение, от имени которого выполняется запрос. В MVP передаётся в
+        пути вместо идентификатора из токена (аутентификация вне рамок MVP).
+      schema: { type: integer, format: int64 }
+
+  responses:
+    NotFound:
+      description: Не найдено
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    OrderStatus:
+      type: string
+      enum: [created, accepted, cooking, ready, delivered, rejected, cancelled]
+
+    Restaurant:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    MenuItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        restaurant_id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        price_cents: { type: integer, format: int64 }
+        is_available: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    CreateMenuItemRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        price_cents: { type: integer, format: int64, minimum: 1 }
+      required: [name, price_cents]
+
+    OrderItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        order_id: { type: integer, format: int64 }
+        menu_item_id: { type: integer, format: int64 }
+        name: { type: string }
+        quantity: { type: integer }
+        price_cents_at_order: { type: integer, format: int64 }
+
+    Order:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        user_id: { type: integer, format: int64 }
+        restaurant_id: { type: integer, format: int64 }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        total_cents: { type: integer, format: int64 }
+        comment: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        user_id: { type: integer, format: int64 }
+        restaurant_id: { type: integer, format: int64 }
+        comment: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              menu_item_id: { type: integer, format: int64 }
+              quantity: { type: integer, minimum: 1 }
+            required: [menu_item_id, quantity]
+      required: [user_id, restaurant_id, items]
