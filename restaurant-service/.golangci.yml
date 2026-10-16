@@ -1,0 +1,22 @@
+run:
+  timeout: 3m
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - gofmt
+    - goimports
+    - gosimple
+    - bodyclose
+    - noctx
+    - revive
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
